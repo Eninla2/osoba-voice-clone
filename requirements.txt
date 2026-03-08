@@ -1,4 +1,6 @@
 fastapi
 uvicorn
 gradio_client
-httpx
+soundfile
+numpy
+python-multipart
