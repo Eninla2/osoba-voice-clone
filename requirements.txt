@@ -1,4 +1,6 @@
 fastapi
 uvicorn
-edge-tts
+gradio_client
+soundfile
+numpy
 python-multipart
