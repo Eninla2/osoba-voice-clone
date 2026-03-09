@@ -1,11 +1,11 @@
-import os, re, base64, tempfile
+import os, re, base64, tempfile, asyncio
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse, HTMLResponse
 import edge_tts
 
 app = FastAPI()
 
-VERSION       = "13.5.0"
+VERSION       = "13.9.0"
 SECRET_KEY    = os.environ.get("OSOBA_SECRET", "osoba2026")
 DEFAULT_VOICE = os.environ.get("OSOBA_VOICE",  "en-GB-RyanNeural")
 
@@ -127,19 +127,31 @@ def split_chunks(text, max_chars=3000):
         chunks.append(current)
     return chunks if chunks else [text[:max_chars]]
 
-async def tts_chunk(text, voice, rate):
-    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
-        tmp_path = tmp.name
-    try:
-        await edge_tts.Communicate(text, voice, rate=rate).save(tmp_path)
-        with open(tmp_path, "rb") as f:
-            data = f.read()
-        if not data:
-            raise ValueError("No audio was received. Please verify that your parameters are correct.")
-    finally:
-        if os.path.exists(tmp_path):
-            os.unlink(tmp_path)
-    return data
+async def tts_chunk(text, voice, rate, retries=3):
+    last_error = None
+    for attempt in range(1, retries + 1):
+        tmp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
+                tmp_path = tmp.name
+            print(f"[OSOBA] tts attempt {attempt}/{retries} voice={voice}")
+            await edge_tts.Communicate(text, voice, rate=rate).save(tmp_path)
+            with open(tmp_path, "rb") as f:
+                data = f.read()
+            if data:
+                return data
+            # Empty file — wait and retry
+            last_error = "No audio received (empty response)"
+            print(f"[OSOBA] empty audio on attempt {attempt}, retrying...")
+        except Exception as e:
+            last_error = str(e)
+            print(f"[OSOBA] attempt {attempt} error: {e}")
+        finally:
+            if tmp_path and os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+        if attempt < retries:
+            await asyncio.sleep(1.5 * attempt)  # 1.5s, then 3s
+    raise ValueError(f"No audio was received after {retries} attempts. Last error: {last_error}")
 
 async def generate_audio(text, voice, speed_key="normal"):
     rate   = SPEED_RATES.get(speed_key, "+0%")
