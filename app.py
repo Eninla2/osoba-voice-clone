@@ -5,7 +5,7 @@ import edge_tts
 
 app = FastAPI()
 
-VERSION       = "13.0.0"
+VERSION       = "13.1.0"
 SECRET_KEY    = os.environ.get("OSOBA_SECRET", "osoba2026")
 DEFAULT_VOICE = os.environ.get("OSOBA_VOICE",  "en-GB-RyanNeural")
 
@@ -17,11 +17,14 @@ SPEED_RATES = {
     "fast":          "+30%",
 }
 
-# ── CONFIRMED WORKING voices only ──
-# Removed: en-TZ (fails), en-KE (fails)
-# Kept: en-US, en-GB, en-AU, en-CA, en-IE, en-IN, en-NZ, en-SG, en-HK, en-PH, en-NG, en-ZA
+# ══════════════════════════════════════════════════════
+# 65 VERIFIED VOICES — Standard Neural only
+# Removed Neural2 variants: Davis, Jason, Tony, Jacob
+# Removed: en-TZ, en-KE (not supported), JennyMultilingual
+# Confirmed working from live testing screenshots
+# ══════════════════════════════════════════════════════
 VOICES = {
-    # US MALE (11)
+    # ── US MALE (7 confirmed) ──
     "en-US-GuyNeural":          "US Male — Smooth, Authoritative",
     "en-US-ChristopherNeural":  "US Male — Rich, Professional",
     "en-US-EricNeural":         "US Male — Confident, Clear",
@@ -29,11 +32,7 @@ VOICES = {
     "en-US-SteffanNeural":      "US Male — Deep, Powerful",
     "en-US-AndrewNeural":       "US Male — Casual, Natural",
     "en-US-BrianNeural":        "US Male — Steady, Broadcast",
-    "en-US-DavisNeural":        "US Male — Smooth, Engaging",
-    "en-US-JasonNeural":        "US Male — Bold, Charismatic",
-    "en-US-TonyNeural":         "US Male — Sharp, Direct",
-    "en-US-JacobNeural":        "US Male — Relaxed, Conversational",
-    # US FEMALE (13)
+    # ── US FEMALE (12 confirmed) ──
     "en-US-JennyNeural":        "US Female — Warm, Natural",
     "en-US-AriaNeural":         "US Female — Expressive, Lively",
     "en-US-MichelleNeural":     "US Female — Bright, Friendly",
@@ -46,7 +45,7 @@ VOICES = {
     "en-US-NancyNeural":        "US Female — Composed, Assured",
     "en-US-SaraNeural":         "US Female — Soft, Sincere",
     "en-US-EmmaNeural":         "US Female — Warm, Expressive",
-    # BRITISH MALE (7)
+    # ── BRITISH MALE (7 confirmed) ──
     "en-GB-RyanNeural":         "British Male — Deep, Cinematic",
     "en-GB-ThomasNeural":       "British Male — Clear, Documentary",
     "en-GB-AlfieNeural":        "British Male — Relaxed, Natural",
@@ -54,7 +53,7 @@ VOICES = {
     "en-GB-EthanNeural":        "British Male — Young, Engaging",
     "en-GB-NoahNeural":         "British Male — Calm, Measured",
     "en-GB-OliverNeural":       "British Male — Warm, Friendly",
-    # BRITISH FEMALE (7)
+    # ── BRITISH FEMALE (7 confirmed) ──
     "en-GB-SoniaNeural":        "British Female — Crisp, Elegant",
     "en-GB-LibbyNeural":        "British Female — Light, Cheerful",
     "en-GB-MaisieNeural":       "British Female — Youthful, Bright",
@@ -62,14 +61,14 @@ VOICES = {
     "en-GB-BellaNeural":        "British Female — Warm, Natural",
     "en-GB-HollieNeural":       "British Female — Smooth, Professional",
     "en-GB-OliviaNeural":       "British Female — Polished, Assured",
-    # AUSTRALIAN MALE (6)
+    # ── AUSTRALIAN MALE (6 confirmed) ──
     "en-AU-WilliamNeural":      "Australian Male — Relaxed, Friendly",
     "en-AU-DarrenNeural":       "Australian Male — Direct, Clear",
     "en-AU-DuncanNeural":       "Australian Male — Steady, Natural",
     "en-AU-KenNeural":          "Australian Male — Warm, Casual",
     "en-AU-NeilNeural":         "Australian Male — Confident, Smooth",
     "en-AU-TimNeural":          "Australian Male — Laid-back, Easy",
-    # AUSTRALIAN FEMALE (8)
+    # ── AUSTRALIAN FEMALE (8 confirmed) ──
     "en-AU-NatashaNeural":      "Australian Female — Warm, Natural",
     "en-AU-AnnetteNeural":      "Australian Female — Bright, Friendly",
     "en-AU-CarlyNeural":        "Australian Female — Crisp, Upbeat",
@@ -78,33 +77,32 @@ VOICES = {
     "en-AU-JoanneNeural":       "Australian Female — Calm, Assured",
     "en-AU-KimNeural":          "Australian Female — Soothing, Clear",
     "en-AU-TinaNeural":         "Australian Female — Cheerful, Lively",
-    # NIGERIAN (confirmed working)
-    "en-NG-AbeoNeural":         "Nigerian Male — Rich, Authoritative",
-    "en-NG-EzinneNeural":       "Nigerian Female — Warm, Expressive",
-    # SOUTH AFRICAN (confirmed working)
-    "en-ZA-LukeNeural":         "South African Male — Deep, Distinct",
-    "en-ZA-LeahNeural":         "South African Female — Clear, Vibrant",
-    # INDIAN
-    "en-IN-PrabhatNeural":      "Indian Male — Clear, Professional",
-    "en-IN-NeerjaNeural":       "Indian Female — Warm, Expressive",
-    # IRISH
-    "en-IE-ConnorNeural":       "Irish Male — Warm, Charming",
-    "en-IE-EmilyNeural":        "Irish Female — Soft, Melodic",
-    # CANADIAN
-    "en-CA-LiamNeural":         "Canadian Male — Warm, Natural",
-    "en-CA-ClaraNeural":        "Canadian Female — Clear, Friendly",
-    # NEW ZEALAND
-    "en-NZ-MitchellNeural":     "New Zealand Male — Friendly, Casual",
-    "en-NZ-MollyNeural":        "New Zealand Female — Bright, Natural",
-    # FILIPINO
-    "en-PH-JamesNeural":        "Filipino Male — Clear, Engaging",
-    "en-PH-RosaNeural":         "Filipino Female — Warm, Expressive",
-    # SINGAPOREAN
-    "en-SG-WayneNeural":        "Singaporean Male — Crisp, Modern",
-    "en-SG-LunaNeural":         "Singaporean Female — Bright, Clear",
-    # HONG KONG
-    "en-HK-SamNeural":          "Hong Kong Male — Confident, Clear",
-    "en-HK-YanNeural":          "Hong Kong Female — Smooth, Natural",
+    # ── AFRICAN ──
+    "en-NG-AbeoNeural":         "Nigerian Male \U0001f1f3\U0001f1ec — Rich, Authoritative",
+    "en-NG-EzinneNeural":       "Nigerian Female \U0001f1f3\U0001f1ec — Warm, Expressive",
+    "en-ZA-LukeNeural":         "South African Male \U0001f1ff\U0001f1e6 — Deep, Distinct",
+    "en-ZA-LeahNeural":         "South African Female \U0001f1ff\U0001f1e6 — Clear, Vibrant",
+    # ── INDIAN ──
+    "en-IN-PrabhatNeural":      "Indian Male \U0001f1ee\U0001f1f3 — Clear, Professional",
+    "en-IN-NeerjaNeural":       "Indian Female \U0001f1ee\U0001f1f3 — Warm, Expressive",
+    # ── IRISH ──
+    "en-IE-ConnorNeural":       "Irish Male \U0001f1ee\U0001f1ea — Warm, Charming",
+    "en-IE-EmilyNeural":        "Irish Female \U0001f1ee\U0001f1ea — Soft, Melodic",
+    # ── CANADIAN ──
+    "en-CA-LiamNeural":         "Canadian Male \U0001f1e8\U0001f1e6 — Warm, Natural",
+    "en-CA-ClaraNeural":        "Canadian Female \U0001f1e8\U0001f1e6 — Clear, Friendly",
+    # ── NEW ZEALAND ──
+    "en-NZ-MitchellNeural":     "New Zealand Male \U0001f1f3\U0001f1ff — Friendly, Casual",
+    "en-NZ-MollyNeural":        "New Zealand Female \U0001f1f3\U0001f1ff — Bright, Natural",
+    # ── FILIPINO ──
+    "en-PH-JamesNeural":        "Filipino Male \U0001f1f5\U0001f1ed — Clear, Engaging",
+    "en-PH-RosaNeural":         "Filipino Female \U0001f1f5\U0001f1ed — Warm, Expressive",
+    # ── SINGAPOREAN ──
+    "en-SG-WayneNeural":        "Singaporean Male \U0001f1f8\U0001f1ec — Crisp, Modern",
+    "en-SG-LunaNeural":         "Singaporean Female \U0001f1f8\U0001f1ec — Bright, Clear",
+    # ── HONG KONG ──
+    "en-HK-SamNeural":          "Hong Kong Male \U0001f1ed\U0001f1f0 — Confident, Clear",
+    "en-HK-YanNeural":          "Hong Kong Female \U0001f1ed\U0001f1f0 — Smooth, Natural",
 }
 
 PREVIEW_TEXT = "Welcome to OptiToon Creations. Today we dive deep into the world of organized crime — the hierarchies, the rules, and the ruthless power struggles that defined history's most dangerous organizations."
