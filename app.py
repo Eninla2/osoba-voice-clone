@@ -5,7 +5,7 @@ import edge_tts
 
 app = FastAPI()
 
-VERSION       = "12.0.0"
+VERSION       = "13.0.0"
 SECRET_KEY    = os.environ.get("OSOBA_SECRET", "osoba2026")
 DEFAULT_VOICE = os.environ.get("OSOBA_VOICE",  "en-GB-RyanNeural")
 
@@ -46,7 +46,6 @@ VOICES = {
     "en-US-NancyNeural":        "US Female — Composed, Assured",
     "en-US-SaraNeural":         "US Female — Soft, Sincere",
     "en-US-EmmaNeural":         "US Female — Warm, Expressive",
-    "en-US-JennyMultilingualNeural": "US Female — Multilingual, Clear",
     # BRITISH MALE (7)
     "en-GB-RyanNeural":         "British Male — Deep, Cinematic",
     "en-GB-ThomasNeural":       "British Male — Clear, Documentary",
