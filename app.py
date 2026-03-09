@@ -154,3 +154,4 @@ async def generate_file(
         "words":   len(text.split()),
         "chunks":  num_chunks,
     })
+    
