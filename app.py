@@ -35,9 +35,6 @@ VOICES = {
     # ── US FEMALE (12 confirmed) ──
     "en-US-JennyNeural":        "US Female — Warm, Natural",
     "en-US-AriaNeural":         "US Female — Expressive, Lively",
-    "en-US-MichelleNeural":     "US Female — Bright, Friendly",
-    "en-US-AshleyNeural":       "US Female — Gentle, Soothing",
-    "en-US-CoraNeural":         "US Female — Clear, Professional",
     "en-US-ElizabethNeural":    "US Female — Elegant, Polished",
     "en-US-AmberNeural":        "US Female — Casual, Upbeat",
     "en-US-AnaNeural":          "US Female — Youthful, Cheerful",
