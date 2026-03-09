@@ -1,13 +1,12 @@
 import os, re, base64, tempfile, asyncio
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse, HTMLResponse
+from contextlib import asynccontextmanager
 import edge_tts
 
-app = FastAPI()
-
-VERSION       = "13.9.0"
-SECRET_KEY    = os.environ.get("OSOBA_SECRET", "osoba2026")
-DEFAULT_VOICE = os.environ.get("OSOBA_VOICE",  "en-GB-RyanNeural")
+VERSION    = "14.0.0"
+SECRET_KEY = os.environ.get("OSOBA_SECRET", "osoba2026")
+DEFAULT_VOICE = "en-US-GuyNeural"
 
 SPEED_RATES = {
     "very_slow":     "-35%",
@@ -17,88 +16,96 @@ SPEED_RATES = {
     "fast":          "+30%",
 }
 
-# ══════════════════════════════════════════════════════
-# 65 VERIFIED VOICES — Standard Neural only
-# Removed Neural2 variants: Davis, Jason, Tony, Jacob
-# Removed: en-TZ, en-KE (not supported), JennyMultilingual
-# Confirmed working from live testing screenshots
-# ══════════════════════════════════════════════════════
-VOICES = {
-    # ── US MALE (7 confirmed) ──
-    "en-US-GuyNeural":          "US Male — Smooth, Authoritative",
-    "en-US-ChristopherNeural":  "US Male — Rich, Professional",
-    "en-US-EricNeural":         "US Male — Confident, Clear",
-    "en-US-RogerNeural":        "US Male — Warm, Friendly",
-    "en-US-SteffanNeural":      "US Male — Deep, Powerful",
-    "en-US-AndrewNeural":       "US Male — Casual, Natural",
-    "en-US-BrianNeural":        "US Male — Steady, Broadcast",
-    # ── US FEMALE (12 confirmed) ──
-    "en-US-JennyNeural":        "US Female — Warm, Natural",
-    "en-US-AriaNeural":         "US Female — Expressive, Lively",
-    "en-US-EmmaNeural":         "US Female — Warm, Expressive",
-    # ── BRITISH MALE (7 confirmed) ──
-    "en-GB-RyanNeural":         "British Male — Deep, Cinematic",
-    "en-GB-ThomasNeural":       "British Male — Clear, Documentary",
-    "en-GB-AlfieNeural":        "British Male — Relaxed, Natural",
-    "en-GB-ElliotNeural":       "British Male — Crisp, Educated",
-    "en-GB-EthanNeural":        "British Male — Young, Engaging",
-    "en-GB-NoahNeural":         "British Male — Calm, Measured",
-    "en-GB-OliverNeural":       "British Male — Warm, Friendly",
-    # ── BRITISH FEMALE (7 confirmed) ──
-    "en-GB-SoniaNeural":        "British Female — Crisp, Elegant",
-    "en-GB-LibbyNeural":        "British Female — Light, Cheerful",
-    "en-GB-MaisieNeural":       "British Female — Youthful, Bright",
-    "en-GB-AbbiNeural":         "British Female — Clear, Confident",
-    "en-GB-BellaNeural":        "British Female — Warm, Natural",
-    "en-GB-HollieNeural":       "British Female — Smooth, Professional",
-    "en-GB-OliviaNeural":       "British Female — Polished, Assured",
-    # ── AUSTRALIAN MALE (6 confirmed) ──
-    "en-AU-WilliamNeural":      "Australian Male — Relaxed, Friendly",
-    "en-AU-DarrenNeural":       "Australian Male — Direct, Clear",
-    "en-AU-DuncanNeural":       "Australian Male — Steady, Natural",
-    "en-AU-KenNeural":          "Australian Male — Warm, Casual",
-    "en-AU-NeilNeural":         "Australian Male — Confident, Smooth",
-    "en-AU-TimNeural":          "Australian Male — Laid-back, Easy",
-    # ── AUSTRALIAN FEMALE (8 confirmed) ──
-    "en-AU-NatashaNeural":      "Australian Female — Warm, Natural",
-    "en-AU-AnnetteNeural":      "Australian Female — Bright, Friendly",
-    "en-AU-CarlyNeural":        "Australian Female — Crisp, Upbeat",
-    "en-AU-ElsieNeural":        "Australian Female — Soft, Gentle",
-    "en-AU-FreyaNeural":        "Australian Female — Energetic, Vivid",
-    "en-AU-JoanneNeural":       "Australian Female — Calm, Assured",
-    "en-AU-KimNeural":          "Australian Female — Soothing, Clear",
-    "en-AU-TinaNeural":         "Australian Female — Cheerful, Lively",
-    # ── AFRICAN ──
-    "en-NG-AbeoNeural":         "Nigerian Male \U0001f1f3\U0001f1ec — Rich, Authoritative",
-    "en-NG-EzinneNeural":       "Nigerian Female \U0001f1f3\U0001f1ec — Warm, Expressive",
-    "en-ZA-LukeNeural":         "South African Male \U0001f1ff\U0001f1e6 — Deep, Distinct",
-    "en-ZA-LeahNeural":         "South African Female \U0001f1ff\U0001f1e6 — Clear, Vibrant",
-    # ── INDIAN ──
-    "en-IN-PrabhatNeural":      "Indian Male \U0001f1ee\U0001f1f3 — Clear, Professional",
-    "en-IN-NeerjaNeural":       "Indian Female \U0001f1ee\U0001f1f3 — Warm, Expressive",
-    # ── IRISH ──
-    "en-IE-ConnorNeural":       "Irish Male \U0001f1ee\U0001f1ea — Warm, Charming",
-    "en-IE-EmilyNeural":        "Irish Female \U0001f1ee\U0001f1ea — Soft, Melodic",
-    # ── CANADIAN ──
-    "en-CA-LiamNeural":         "Canadian Male \U0001f1e8\U0001f1e6 — Warm, Natural",
-    "en-CA-ClaraNeural":        "Canadian Female \U0001f1e8\U0001f1e6 — Clear, Friendly",
-    # ── NEW ZEALAND ──
-    "en-NZ-MitchellNeural":     "New Zealand Male \U0001f1f3\U0001f1ff — Friendly, Casual",
-    "en-NZ-MollyNeural":        "New Zealand Female \U0001f1f3\U0001f1ff — Bright, Natural",
-    # ── FILIPINO ──
-    "en-PH-JamesNeural":        "Filipino Male \U0001f1f5\U0001f1ed — Clear, Engaging",
-    "en-PH-RosaNeural":         "Filipino Female \U0001f1f5\U0001f1ed — Warm, Expressive",
-    # ── SINGAPOREAN ──
-    "en-SG-WayneNeural":        "Singaporean Male \U0001f1f8\U0001f1ec — Crisp, Modern",
-    "en-SG-LunaNeural":         "Singaporean Female \U0001f1f8\U0001f1ec — Bright, Clear",
-    # ── HONG KONG ──
-    "en-HK-SamNeural":          "Hong Kong Male \U0001f1ed\U0001f1f0 — Confident, Clear",
-    "en-HK-YanNeural":          "Hong Kong Female \U0001f1ed\U0001f1f0 — Smooth, Natural",
+VOICE_LABELS = {
+    "en-US-GuyNeural":         "US Male — Smooth, Authoritative",
+    "en-US-ChristopherNeural": "US Male — Rich, Professional",
+    "en-US-EricNeural":        "US Male — Confident, Clear",
+    "en-US-RogerNeural":       "US Male — Warm, Friendly",
+    "en-US-SteffanNeural":     "US Male — Deep, Powerful",
+    "en-US-AndrewNeural":      "US Male — Casual, Natural",
+    "en-US-BrianNeural":       "US Male — Steady, Broadcast",
+    "en-US-JennyNeural":       "US Female — Warm, Natural",
+    "en-US-AriaNeural":        "US Female — Expressive, Lively",
+    "en-US-MichelleNeural":    "US Female — Bright, Friendly",
+    "en-US-AshleyNeural":      "US Female — Gentle, Soothing",
+    "en-US-CoraNeural":        "US Female — Clear, Professional",
+    "en-US-ElizabethNeural":   "US Female — Elegant, Polished",
+    "en-US-AmberNeural":       "US Female — Casual, Upbeat",
+    "en-US-AnaNeural":         "US Female — Youthful, Cheerful",
+    "en-US-MonicaNeural":      "US Female — Mature, Confident",
+    "en-US-NancyNeural":       "US Female — Composed, Assured",
+    "en-US-SaraNeural":        "US Female — Soft, Sincere",
+    "en-US-EmmaNeural":        "US Female — Warm, Expressive",
+    "en-GB-RyanNeural":        "British Male — Deep, Cinematic",
+    "en-GB-ThomasNeural":      "British Male — Clear, Documentary",
+    "en-GB-AlfieNeural":       "British Male — Relaxed, Natural",
+    "en-GB-ElliotNeural":      "British Male — Crisp, Educated",
+    "en-GB-EthanNeural":       "British Male — Young, Engaging",
+    "en-GB-NoahNeural":        "British Male — Calm, Measured",
+    "en-GB-OliverNeural":      "British Male — Warm, Friendly",
+    "en-GB-SoniaNeural":       "British Female — Crisp, Elegant",
+    "en-GB-LibbyNeural":       "British Female — Light, Cheerful",
+    "en-GB-MaisieNeural":      "British Female — Youthful, Bright",
+    "en-GB-AbbiNeural":        "British Female — Clear, Confident",
+    "en-GB-BellaNeural":       "British Female — Warm, Natural",
+    "en-GB-HollieNeural":      "British Female — Smooth, Professional",
+    "en-GB-OliviaNeural":      "British Female — Polished, Assured",
+    "en-AU-WilliamNeural":     "Australian Male — Relaxed, Friendly",
+    "en-AU-DarrenNeural":      "Australian Male — Direct, Clear",
+    "en-AU-DuncanNeural":      "Australian Male — Steady, Natural",
+    "en-AU-KenNeural":         "Australian Male — Warm, Casual",
+    "en-AU-NeilNeural":        "Australian Male — Confident, Smooth",
+    "en-AU-TimNeural":         "Australian Male — Laid-back, Easy",
+    "en-AU-NatashaNeural":     "Australian Female — Warm, Natural",
+    "en-AU-AnnetteNeural":     "Australian Female — Bright, Friendly",
+    "en-AU-CarlyNeural":       "Australian Female — Crisp, Upbeat",
+    "en-AU-ElsieNeural":       "Australian Female — Soft, Gentle",
+    "en-AU-FreyaNeural":       "Australian Female — Energetic, Vivid",
+    "en-AU-JoanneNeural":      "Australian Female — Calm, Assured",
+    "en-AU-KimNeural":         "Australian Female — Soothing, Clear",
+    "en-AU-TinaNeural":        "Australian Female — Cheerful, Lively",
+    "en-NG-AbeoNeural":        "Nigerian Male \U0001f1f3\U0001f1ec — Rich, Authoritative",
+    "en-NG-EzinneNeural":      "Nigerian Female \U0001f1f3\U0001f1ec — Warm, Expressive",
+    "en-ZA-LukeNeural":        "South African Male \U0001f1ff\U0001f1e6 — Deep, Distinct",
+    "en-ZA-LeahNeural":        "South African Female \U0001f1ff\U0001f1e6 — Clear, Vibrant",
+    "en-IN-PrabhatNeural":     "Indian Male \U0001f1ee\U0001f1f3 — Clear, Professional",
+    "en-IN-NeerjaNeural":      "Indian Female \U0001f1ee\U0001f1f3 — Warm, Expressive",
+    "en-IE-ConnorNeural":      "Irish Male \U0001f1ee\U0001f1ea — Warm, Charming",
+    "en-IE-EmilyNeural":       "Irish Female \U0001f1ee\U0001f1ea — Soft, Melodic",
+    "en-CA-LiamNeural":        "Canadian Male \U0001f1e8\U0001f1e6 — Warm, Natural",
+    "en-CA-ClaraNeural":       "Canadian Female \U0001f1e8\U0001f1e6 — Clear, Friendly",
+    "en-NZ-MitchellNeural":    "New Zealand Male \U0001f1f3\U0001f1ff — Friendly, Casual",
+    "en-NZ-MollyNeural":       "New Zealand Female \U0001f1f3\U0001f1ff — Bright, Natural",
+    "en-PH-JamesNeural":       "Filipino Male \U0001f1f5\U0001f1ed — Clear, Engaging",
+    "en-PH-RosaNeural":        "Filipino Female \U0001f1f5\U0001f1ed — Warm, Expressive",
+    "en-SG-WayneNeural":       "Singaporean Male \U0001f1f8\U0001f1ec — Crisp, Modern",
+    "en-SG-LunaNeural":        "Singaporean Female \U0001f1f8\U0001f1ec — Bright, Clear",
+    "en-HK-SamNeural":         "Hong Kong Male \U0001f1ed\U0001f1f0 — Confident, Clear",
+    "en-HK-YanNeural":         "Hong Kong Female \U0001f1ed\U0001f1f0 — Smooth, Natural",
 }
 
-PREVIEW_TEXT = "Welcome to OptiToon Creations. Today we dive deep into the world of organized crime — the hierarchies, the rules, and the ruthless power struggles that defined history's most dangerous organizations."
+# Runtime voice list — populated at startup by asking Microsoft directly
+VOICES = {}
 
-print(f"[OSOBA v{VERSION}] READY — {len(VOICES)} confirmed voices")
+PREVIEW_TEXT = "Welcome to OptiToon Creations. Today we dive deep into the world of organized crime."
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await load_voices()
+    yield
+
+app = FastAPI(lifespan=lifespan)
+
+async def load_voices():
+    global VOICES
+    try:
+        ms_voices = await edge_tts.list_voices()
+        ms_ids    = {v["ShortName"] for v in ms_voices}
+        VOICES    = {k: v for k, v in VOICE_LABELS.items() if k in ms_ids}
+        print(f"[OSOBA v{VERSION}] Microsoft returned {len(ms_ids)} voices, {len(VOICES)} English matched")
+    except Exception as e:
+        VOICES = dict(VOICE_LABELS)
+        print(f"[OSOBA v{VERSION}] WARNING: Voice list fetch failed ({e}), using full fallback")
 
 def split_chunks(text, max_chars=3000):
     paragraphs = [p.strip() for p in re.split(r'\n\n+', text) if p.strip()]
@@ -134,15 +141,14 @@ async def tts_chunk(text, voice, rate, retries=3):
         try:
             with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
                 tmp_path = tmp.name
-            print(f"[OSOBA] tts attempt {attempt}/{retries} voice={voice}")
+            print(f"[OSOBA] attempt {attempt}/{retries} voice={voice}")
             await edge_tts.Communicate(text, voice, rate=rate).save(tmp_path)
             with open(tmp_path, "rb") as f:
                 data = f.read()
             if data:
                 return data
-            # Empty file — wait and retry
-            last_error = "No audio received (empty response)"
-            print(f"[OSOBA] empty audio on attempt {attempt}, retrying...")
+            last_error = "Empty audio from Microsoft"
+            print(f"[OSOBA] empty audio attempt {attempt}")
         except Exception as e:
             last_error = str(e)
             print(f"[OSOBA] attempt {attempt} error: {e}")
@@ -150,14 +156,14 @@ async def tts_chunk(text, voice, rate, retries=3):
             if tmp_path and os.path.exists(tmp_path):
                 os.unlink(tmp_path)
         if attempt < retries:
-            await asyncio.sleep(1.5 * attempt)  # 1.5s, then 3s
-    raise ValueError(f"No audio was received after {retries} attempts. Last error: {last_error}")
+            await asyncio.sleep(1.5 * attempt)
+    raise ValueError(f"No audio after {retries} attempts. {last_error}")
 
 async def generate_audio(text, voice, speed_key="normal"):
     rate   = SPEED_RATES.get(speed_key, "+0%")
     chunks = split_chunks(text)
-    print(f"[OSOBA] voice={voice} | words={len(text.split())} | chunks={len(chunks)} | rate={rate}")
-    parts = []
+    print(f"[OSOBA] voice={voice} | words={len(text.split())} | chunks={len(chunks)}")
+    parts  = []
     for i, chunk in enumerate(chunks):
         print(f"[OSOBA] chunk {i+1}/{len(chunks)}")
         parts.append(await tts_chunk(chunk, voice, rate))
@@ -169,14 +175,18 @@ def root():
         f"<html><body style='font-family:monospace;background:#0d0d0d;color:#1877f2;padding:40px'>"
         f"<h2>OSOBA Voice Studio v{VERSION}</h2>"
         f"<p style='color:#e8e8e8'>Status: <b style='color:#27ae60'>ONLINE</b></p>"
-        f"<p style='color:#aaa'>{len(VOICES)} confirmed voices loaded</p>"
-        f"<p style='color:#888'>GET /health &nbsp;|&nbsp; POST /generate &nbsp;|&nbsp; POST /preview</p>"
+        f"<p style='color:#aaa'>{len(VOICES)} Microsoft-verified voices loaded</p>"
         f"</body></html>"
     )
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": VERSION, "voice_count": len(VOICES), "speeds": list(SPEED_RATES.keys())}
+    return {"status": "ok", "version": VERSION, "voice_count": len(VOICES)}
+
+@app.get("/voices")
+def list_voices_route():
+    """Live Microsoft-verified voice list — used by the plugin"""
+    return {"success": True, "voices": VOICES, "count": len(VOICES)}
 
 @app.post("/generate")
 async def generate(request: Request):
