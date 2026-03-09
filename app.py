@@ -1,11 +1,11 @@
-import os, re, base64, asyncio, tempfile
-from fastapi import FastAPI, Request, HTTPException, UploadFile, File, Form
+import os, re, base64, tempfile
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse, HTMLResponse
 import edge_tts
 
 app = FastAPI()
 
-VERSION       = "8.0.0"
+VERSION       = "9.0.0"
 SECRET_KEY    = os.environ.get("OSOBA_SECRET", "osoba2026")
 DEFAULT_VOICE = os.environ.get("OSOBA_VOICE", "en-GB-RyanNeural")
 
@@ -27,6 +27,8 @@ SPEED_RATES = {
     "slightly_fast": "+15%",
     "fast":          "+30%",
 }
+
+PREVIEW_TEXT = "Welcome to OptiToon Creations. Today we dive deep into the world of organized crime — the hierarchies, the rules, and the ruthless power struggles that defined history's most dangerous organizations."
 
 print(f"[OSOBA v{VERSION}] READY — voice: {DEFAULT_VOICE}")
 
@@ -79,12 +81,12 @@ async def generate_audio(text, voice, speed_key="normal"):
 @app.get("/", response_class=HTMLResponse)
 def root():
     return (
-        f"<html><body style='font-family:monospace;background:#0a1628;color:#4f9fff;padding:40px'>"
+        f"<html><body style='font-family:monospace;background:#0d0d0d;color:#c0392b;padding:40px'>"
         f"<h2>OSOBA Voice Studio v{VERSION}</h2>"
-        f"<p>Status: <b>ONLINE</b></p>"
-        f"<p>Endpoints: GET /health &nbsp;|&nbsp; POST /generate &nbsp;|&nbsp; POST /generate-file</p>"
-        f"<p>Speeds: {', '.join(SPEED_RATES.keys())}</p>"
-        f"<p>Voices: {', '.join(VOICES.keys())}</p>"
+        f"<p style='color:#e8e8e8'>Status: <b style='color:#27ae60'>ONLINE</b></p>"
+        f"<p style='color:#888'>Endpoints: GET /health | POST /generate | POST /preview</p>"
+        f"<p style='color:#888'>Speeds: {', '.join(SPEED_RATES.keys())}</p>"
+        f"<p style='color:#888'>Voices: {', '.join(VOICES.keys())}</p>"
         f"</body></html>"
     )
 
@@ -121,37 +123,21 @@ async def generate(request: Request):
         "chunks":  num_chunks,
     })
 
-@app.post("/generate-file")
-async def generate_file(
-    file:  UploadFile = File(...),
-    key:   str        = Form(default=""),
-    voice: str        = Form(default=""),
-    speed: str        = Form(default="normal"),
-):
-    print(f"[OSOBA] /generate-file received: voice={voice} speed={speed} filename={file.filename}")
-    if SECRET_KEY and key != SECRET_KEY:
-        raise HTTPException(403, "Invalid key")
-    if not file.filename.lower().endswith(".txt"):
-        raise HTTPException(400, "Only .txt files supported")
-    raw = await file.read()
+@app.post("/preview")
+async def preview_voice(request: Request):
     try:
-        text = raw.decode("utf-8").strip()
+        body = await request.json()
     except Exception:
-        raise HTTPException(400, "File must be UTF-8 plain text")
-    if not text:
-        raise HTTPException(400, "File is empty")
-    if not voice or voice not in VOICES:
+        raise HTTPException(400, "Invalid JSON")
+    if SECRET_KEY and body.get("key", "") != SECRET_KEY:
+        raise HTTPException(403, "Invalid key")
+    voice = body.get("voice", DEFAULT_VOICE)
+    if voice not in VOICES:
         voice = DEFAULT_VOICE
-    if speed not in SPEED_RATES:
-        speed = "normal"
-    audio, num_chunks = await generate_audio(text, voice, speed)
+    audio = await tts_chunk(PREVIEW_TEXT, voice, "+0%")
     return JSONResponse({
         "success": True,
         "audio":   base64.b64encode(audio).decode(),
         "format":  "mp3",
         "voice":   voice,
-        "speed":   speed,
-        "words":   len(text.split()),
-        "chunks":  num_chunks,
     })
-    
