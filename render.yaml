@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: osoba-voice-studio
+    env: node
+    plan: starter
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: OVS_SECRET
+        sync: false
