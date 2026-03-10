@@ -1,4 +1,0 @@
-fastapi
-uvicorn
-edge-tts>=6.1.9
-python-multipart
