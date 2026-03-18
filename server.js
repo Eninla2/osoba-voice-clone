@@ -203,16 +203,15 @@ const MAX_CONCURRENT = 150;
 ══════════════════════════════════════════════ */
 app.set('trust proxy', 1);
 app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors({
-  origin: function(origin, callback) {
-    // Allow Chrome extensions, WordPress, and all origins
-    callback(null, true);
-  },
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: false
-}));
-app.options('*', cors()); // Handle preflight
+// Allow ALL origins including Chrome extensions
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-secret-key');
+  if (req.method === 'OPTIONS') { return res.status(200).end(); }
+  next();
+});
+app.use(cors());
 app.use(express.json({ limit: '2mb' }));
 
 // Global rate limit
@@ -405,3 +404,4 @@ app.listen(PORT, () => {
   console.log(`  Secret:  ${OVS_SECRET ? '✓ set' : '⚠ not set (open access)'}`);
   console.log('');
 });
+   
