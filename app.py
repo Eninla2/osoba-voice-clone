@@ -1,10 +1,10 @@
-import os, re, base64, tempfile, asyncio
+import os, re, base64, asyncio
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse, HTMLResponse
 from contextlib import asynccontextmanager
 import edge_tts
 
-VERSION    = "14.0.0"
+VERSION    = "14.1.0"
 SECRET_KEY = os.environ.get("OSOBA_SECRET", "osoba2026")
 DEFAULT_VOICE = "en-US-GuyNeural"
 
@@ -64,37 +64,40 @@ VOICE_LABELS = {
     "en-AU-JoanneNeural":      "Australian Female — Calm, Assured",
     "en-AU-KimNeural":         "Australian Female — Soothing, Clear",
     "en-AU-TinaNeural":        "Australian Female — Cheerful, Lively",
-    "en-NG-AbeoNeural":        "Nigerian Male \U0001f1f3\U0001f1ec — Rich, Authoritative",
-    "en-NG-EzinneNeural":      "Nigerian Female \U0001f1f3\U0001f1ec — Warm, Expressive",
-    "en-ZA-LukeNeural":        "South African Male \U0001f1ff\U0001f1e6 — Deep, Distinct",
-    "en-ZA-LeahNeural":        "South African Female \U0001f1ff\U0001f1e6 — Clear, Vibrant",
-    "en-IN-PrabhatNeural":     "Indian Male \U0001f1ee\U0001f1f3 — Clear, Professional",
-    "en-IN-NeerjaNeural":      "Indian Female \U0001f1ee\U0001f1f3 — Warm, Expressive",
-    "en-IE-ConnorNeural":      "Irish Male \U0001f1ee\U0001f1ea — Warm, Charming",
-    "en-IE-EmilyNeural":       "Irish Female \U0001f1ee\U0001f1ea — Soft, Melodic",
-    "en-CA-LiamNeural":        "Canadian Male \U0001f1e8\U0001f1e6 — Warm, Natural",
-    "en-CA-ClaraNeural":       "Canadian Female \U0001f1e8\U0001f1e6 — Clear, Friendly",
-    "en-NZ-MitchellNeural":    "New Zealand Male \U0001f1f3\U0001f1ff — Friendly, Casual",
-    "en-NZ-MollyNeural":       "New Zealand Female \U0001f1f3\U0001f1ff — Bright, Natural",
-    "en-PH-JamesNeural":       "Filipino Male \U0001f1f5\U0001f1ed — Clear, Engaging",
-    "en-PH-RosaNeural":        "Filipino Female \U0001f1f5\U0001f1ed — Warm, Expressive",
-    "en-SG-WayneNeural":       "Singaporean Male \U0001f1f8\U0001f1ec — Crisp, Modern",
-    "en-SG-LunaNeural":        "Singaporean Female \U0001f1f8\U0001f1ec — Bright, Clear",
-    "en-HK-SamNeural":         "Hong Kong Male \U0001f1ed\U0001f1f0 — Confident, Clear",
-    "en-HK-YanNeural":         "Hong Kong Female \U0001f1ed\U0001f1f0 — Smooth, Natural",
+    "en-NG-AbeoNeural":        "Nigerian Male 🇳🇬 — Rich, Authoritative",
+    "en-NG-EzinneNeural":      "Nigerian Female 🇳🇬 — Warm, Expressive",
+    "en-ZA-LukeNeural":        "South African Male 🇿🇦 — Deep, Distinct",
+    "en-ZA-LeahNeural":        "South African Female 🇿🇦 — Clear, Vibrant",
+    "en-IN-PrabhatNeural":     "Indian Male 🇮🇳 — Clear, Professional",
+    "en-IN-NeerjaNeural":      "Indian Female 🇮🇳 — Warm, Expressive",
+    "en-IE-ConnorNeural":      "Irish Male 🇮🇪 — Warm, Charming",
+    "en-IE-EmilyNeural":       "Irish Female 🇮🇪 — Soft, Melodic",
+    "en-CA-LiamNeural":        "Canadian Male 🇨🇦 — Warm, Natural",
+    "en-CA-ClaraNeural":       "Canadian Female 🇨🇦 — Clear, Friendly",
+    "en-NZ-MitchellNeural":    "New Zealand Male 🇳🇿 — Friendly, Casual",
+    "en-NZ-MollyNeural":       "New Zealand Female 🇳🇿 — Bright, Natural",
+    "en-PH-JamesNeural":       "Filipino Male 🇵🇭 — Clear, Engaging",
+    "en-PH-RosaNeural":        "Filipino Female 🇵🇭 — Warm, Expressive",
+    "en-SG-WayneNeural":       "Singaporean Male 🇸🇬 — Crisp, Modern",
+    "en-SG-LunaNeural":        "Singaporean Female 🇸🇬 — Bright, Clear",
+    "en-HK-SamNeural":         "Hong Kong Male 🇭🇰 — Confident, Clear",
+    "en-HK-YanNeural":         "Hong Kong Female 🇭🇰 — Smooth, Natural",
 }
 
-# Runtime voice list — populated at startup by asking Microsoft directly
+# Runtime voice list — populated at startup by querying Microsoft directly
 VOICES = {}
 
 PREVIEW_TEXT = "Welcome to OptiToon Creations. Today we dive deep into the world of organized crime."
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await load_voices()
     yield
 
+
 app = FastAPI(lifespan=lifespan)
+
 
 async def load_voices():
     global VOICES
@@ -106,6 +109,7 @@ async def load_voices():
     except Exception as e:
         VOICES = dict(VOICE_LABELS)
         print(f"[OSOBA v{VERSION}] WARNING: Voice list fetch failed ({e}), using full fallback")
+
 
 def split_chunks(text, max_chars=3000):
     paragraphs = [p.strip() for p in re.split(r'\n\n+', text) if p.strip()]
@@ -134,40 +138,43 @@ def split_chunks(text, max_chars=3000):
         chunks.append(current)
     return chunks if chunks else [text[:max_chars]]
 
+
 async def tts_chunk(text, voice, rate, retries=3):
+    """
+    Use stream() instead of save() — avoids temp file I/O on Render's
+    ephemeral disk and works with all edge-tts 6.x versions.
+    """
     last_error = None
     for attempt in range(1, retries + 1):
-        tmp_path = None
         try:
-            with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
-                tmp_path = tmp.name
-            print(f"[OSOBA] attempt {attempt}/{retries} voice={voice}")
-            await edge_tts.Communicate(text, voice, rate=rate).save(tmp_path)
-            with open(tmp_path, "rb") as f:
-                data = f.read()
-            if data:
-                return data
-            last_error = "Empty audio from Microsoft"
-            print(f"[OSOBA] empty audio attempt {attempt}")
+            print(f"[OSOBA] attempt {attempt}/{retries} voice={voice} rate={rate} chars={len(text)}")
+            communicate = edge_tts.Communicate(text, voice, rate=rate)
+            audio_chunks = []
+            async for chunk in communicate.stream():
+                if chunk["type"] == "audio":
+                    audio_chunks.append(chunk["data"])
+            if audio_chunks:
+                return b"".join(audio_chunks)
+            last_error = "Empty audio stream from Microsoft"
+            print(f"[OSOBA] empty audio on attempt {attempt}")
         except Exception as e:
             last_error = str(e)
             print(f"[OSOBA] attempt {attempt} error: {e}")
-        finally:
-            if tmp_path and os.path.exists(tmp_path):
-                os.unlink(tmp_path)
         if attempt < retries:
-            await asyncio.sleep(1.5 * attempt)
-    raise ValueError(f"No audio after {retries} attempts. {last_error}")
+            await asyncio.sleep(2.0 * attempt)
+    raise ValueError(f"No audio after {retries} attempts. Last error: {last_error}")
+
 
 async def generate_audio(text, voice, speed_key="normal"):
     rate   = SPEED_RATES.get(speed_key, "+0%")
     chunks = split_chunks(text)
-    print(f"[OSOBA] voice={voice} | words={len(text.split())} | chunks={len(chunks)}")
+    print(f"[OSOBA] voice={voice} rate={rate} | words={len(text.split())} | chunks={len(chunks)}")
     parts  = []
     for i, chunk in enumerate(chunks):
-        print(f"[OSOBA] chunk {i+1}/{len(chunks)}")
+        print(f"[OSOBA] processing chunk {i+1}/{len(chunks)} ({len(chunk)} chars)")
         parts.append(await tts_chunk(chunk, voice, rate))
     return b"".join(parts), len(chunks)
+
 
 @app.get("/", response_class=HTMLResponse)
 def root():
@@ -179,14 +186,17 @@ def root():
         f"</body></html>"
     )
 
+
 @app.get("/health")
 def health():
     return {"status": "ok", "version": VERSION, "voice_count": len(VOICES)}
+
 
 @app.get("/voices")
 def list_voices_route():
     """Live Microsoft-verified voice list — used by the plugin"""
     return {"success": True, "voices": VOICES, "count": len(VOICES)}
+
 
 @app.post("/generate")
 async def generate(request: Request):
@@ -220,6 +230,7 @@ async def generate(request: Request):
         "chars":   len(text),
         "chunks":  num_chunks,
     })
+
 
 @app.post("/preview")
 async def preview_voice(request: Request):
