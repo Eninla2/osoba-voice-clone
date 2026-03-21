@@ -1,11 +1,23 @@
-import os, re, base64, tempfile, asyncio
+"""
+OSOBA VOICE STUDIO — Render Server v14.2  (100% FREE)
+OptiToon Creations
+
+Engine : Microsoft Edge TTS  — no API key, no billing, no limits
+Render start command: uvicorn app:app --host 0.0.0.0 --port $PORT
+
+ENV VARS to set in Render dashboard:
+  OSOBA_SECRET  — must match the Secret Key in your WP plugin settings
+  PORT          — Render sets this automatically, do NOT set it yourself
+"""
+
+import os, re, base64, asyncio
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse, HTMLResponse
 from contextlib import asynccontextmanager
 import edge_tts
 
-VERSION    = "14.0.0"
-SECRET_KEY = os.environ.get("OSOBA_SECRET", "osoba2026")
+VERSION       = "14.2.0"
+SECRET_KEY    = os.environ.get("OSOBA_SECRET", "osoba2026")
 DEFAULT_VOICE = "en-US-GuyNeural"
 
 SPEED_RATES = {
@@ -84,30 +96,33 @@ VOICE_LABELS = {
     "en-HK-YanNeural":         "Hong Kong Female \U0001f1ed\U0001f1f0 — Smooth, Natural",
 }
 
-# Runtime voice list — populated at startup by asking Microsoft directly
-VOICES = {}
+VOICES = {}  # populated at startup from Microsoft's live list
 
 PREVIEW_TEXT = "Welcome to OptiToon Creations. Today we dive deep into the world of organized crime."
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await load_voices()
+    await _load_voices()
     yield
+
 
 app = FastAPI(lifespan=lifespan)
 
-async def load_voices():
+
+async def _load_voices():
     global VOICES
     try:
         ms_voices = await edge_tts.list_voices()
         ms_ids    = {v["ShortName"] for v in ms_voices}
         VOICES    = {k: v for k, v in VOICE_LABELS.items() if k in ms_ids}
-        print(f"[OSOBA v{VERSION}] Microsoft returned {len(ms_ids)} voices, {len(VOICES)} English matched")
+        print(f"[OVS v{VERSION}] {len(ms_ids)} MS voices — {len(VOICES)} matched")
     except Exception as e:
         VOICES = dict(VOICE_LABELS)
-        print(f"[OSOBA v{VERSION}] WARNING: Voice list fetch failed ({e}), using full fallback")
+        print(f"[OVS v{VERSION}] Voice fetch failed ({e}) — using local fallback")
 
-def split_chunks(text, max_chars=3000):
+
+def _split_chunks(text, max_chars=3000):
     paragraphs = [p.strip() for p in re.split(r'\n\n+', text) if p.strip()]
     if not paragraphs:
         paragraphs = [text.strip()]
@@ -134,59 +149,78 @@ def split_chunks(text, max_chars=3000):
         chunks.append(current)
     return chunks if chunks else [text[:max_chars]]
 
-async def tts_chunk(text, voice, rate, retries=3):
+
+async def _tts_chunk(text: str, voice: str, rate: str, retries: int = 3) -> bytes:
+    """
+    KEY FIX: Uses stream() NOT save().
+    stream() collects audio in memory — no temp files, no disk I/O,
+    works reliably on Render's ephemeral filesystem.
+    """
     last_error = None
     for attempt in range(1, retries + 1):
-        tmp_path = None
         try:
-            with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
-                tmp_path = tmp.name
-            print(f"[OSOBA] attempt {attempt}/{retries} voice={voice}")
-            await edge_tts.Communicate(text, voice, rate=rate).save(tmp_path)
-            with open(tmp_path, "rb") as f:
-                data = f.read()
-            if data:
-                return data
-            last_error = "Empty audio from Microsoft"
-            print(f"[OSOBA] empty audio attempt {attempt}")
+            print(f"[OVS] attempt {attempt}/{retries}  voice={voice}  chars={len(text)}")
+            communicate  = edge_tts.Communicate(text, voice, rate=rate)
+            audio_chunks = []
+            async for chunk in communicate.stream():
+                if chunk["type"] == "audio":
+                    audio_chunks.append(chunk["data"])
+            if audio_chunks:
+                return b"".join(audio_chunks)
+            last_error = "Empty audio stream from Microsoft"
+            print(f"[OVS] empty stream on attempt {attempt}")
         except Exception as e:
             last_error = str(e)
-            print(f"[OSOBA] attempt {attempt} error: {e}")
-        finally:
-            if tmp_path and os.path.exists(tmp_path):
-                os.unlink(tmp_path)
+            print(f"[OVS] attempt {attempt} error: {e}")
         if attempt < retries:
-            await asyncio.sleep(1.5 * attempt)
-    raise ValueError(f"No audio after {retries} attempts. {last_error}")
+            await asyncio.sleep(2.0 * attempt)
+    raise ValueError(f"No audio after {retries} attempts. Last: {last_error}")
 
-async def generate_audio(text, voice, speed_key="normal"):
+
+async def _generate_audio(text: str, voice: str, speed_key: str = "normal"):
     rate   = SPEED_RATES.get(speed_key, "+0%")
-    chunks = split_chunks(text)
-    print(f"[OSOBA] voice={voice} | words={len(text.split())} | chunks={len(chunks)}")
+    chunks = _split_chunks(text)
+    print(f"[OVS] voice={voice}  rate={rate}  words={len(text.split())}  chunks={len(chunks)}")
     parts  = []
     for i, chunk in enumerate(chunks):
-        print(f"[OSOBA] chunk {i+1}/{len(chunks)}")
-        parts.append(await tts_chunk(chunk, voice, rate))
+        print(f"[OVS] chunk {i+1}/{len(chunks)}  ({len(chunk)} chars)")
+        parts.append(await _tts_chunk(chunk, voice, rate))
     return b"".join(parts), len(chunks)
+
+
+# ── ROUTES ────────────────────────────────────────────────────────────────
 
 @app.get("/", response_class=HTMLResponse)
 def root():
     return (
-        f"<html><body style='font-family:monospace;background:#0d0d0d;color:#1877f2;padding:40px'>"
-        f"<h2>OSOBA Voice Studio v{VERSION}</h2>"
-        f"<p style='color:#e8e8e8'>Status: <b style='color:#27ae60'>ONLINE</b></p>"
-        f"<p style='color:#aaa'>{len(VOICES)} Microsoft-verified voices loaded</p>"
-        f"</body></html>"
+        "<html><body style='font-family:monospace;background:#0d0d0d;color:#1877f2;padding:40px'>"
+        f"<h2>🎙 OSOBA Voice Studio v{VERSION}</h2>"
+        "<p style='color:#e8e8e8'>Status: <b style='color:#27ae60'>ONLINE</b></p>"
+        "<p style='color:#aaa'>Engine: Microsoft Edge TTS (100% FREE — no API key)</p>"
+        f"<p style='color:#aaa'>{len(VOICES)} voices loaded</p>"
+        "</body></html>"
     )
+
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": VERSION, "voice_count": len(VOICES)}
+    return {
+        "status":      "ok",
+        "version":     VERSION,
+        "engine":      "Microsoft Edge TTS (FREE)",
+        "voice_count": len(VOICES),
+    }
+
+
+@app.get("/ping")
+def ping():
+    return {"pong": True}
+
 
 @app.get("/voices")
-def list_voices_route():
-    """Live Microsoft-verified voice list — used by the plugin"""
+def voices_route():
     return {"success": True, "voices": VOICES, "count": len(VOICES)}
+
 
 @app.post("/generate")
 async def generate(request: Request):
@@ -196,20 +230,26 @@ async def generate(request: Request):
         raise HTTPException(400, "Invalid JSON")
     if SECRET_KEY and body.get("key", "") != SECRET_KEY:
         raise HTTPException(403, "Invalid key")
+
     text      = body.get("text", "").strip()
     voice     = body.get("voice", DEFAULT_VOICE)
     speed_key = body.get("speed", "normal")
+
     if not text:
         raise HTTPException(400, "No text provided")
+    if len(text) > 80000:
+        raise HTTPException(400, "Text too long (max 80,000 chars)")
     if voice not in VOICES:
         voice = DEFAULT_VOICE
     if speed_key not in SPEED_RATES:
         speed_key = "normal"
+
     try:
-        audio, num_chunks = await generate_audio(text, voice, speed_key)
+        audio, num_chunks = await _generate_audio(text, voice, speed_key)
     except Exception as e:
-        print(f"[OSOBA ERROR] voice={voice} | {e}")
+        print(f"[OVS ERROR] {e}")
         raise HTTPException(500, f"TTS error: {str(e)}")
+
     return JSONResponse({
         "success": True,
         "audio":   base64.b64encode(audio).decode(),
@@ -221,6 +261,7 @@ async def generate(request: Request):
         "chunks":  num_chunks,
     })
 
+
 @app.post("/preview")
 async def preview_voice(request: Request):
     try:
@@ -229,13 +270,16 @@ async def preview_voice(request: Request):
         raise HTTPException(400, "Invalid JSON")
     if SECRET_KEY and body.get("key", "") != SECRET_KEY:
         raise HTTPException(403, "Invalid key")
+
     voice = body.get("voice", DEFAULT_VOICE)
     if voice not in VOICES:
         voice = DEFAULT_VOICE
+
     try:
-        audio = await tts_chunk(PREVIEW_TEXT, voice, "+0%")
+        audio = await _tts_chunk(PREVIEW_TEXT, voice, "+0%")
     except Exception as e:
         raise HTTPException(500, f"Preview error: {str(e)}")
+
     return JSONResponse({
         "success": True,
         "audio":   base64.b64encode(audio).decode(),
