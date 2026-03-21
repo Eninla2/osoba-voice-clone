@@ -1,4 +1,4 @@
 fastapi
-uvicorn
-edge-tts>=6.1.9
+uvicorn[standard]
+edge-tts
 python-multipart
