@@ -29,6 +29,24 @@ const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY || '';
 const OVS_SECRET     = process.env.OVS_SECRET     || '';
 const VERSION        = '3.0.0';
 
+// Multi-user key system
+// Set USER_KEYS in Render as comma-separated keys, e.g: key-alice,key-bob,key-charlie
+// If USER_KEYS is not set, falls back to OVS_SECRET (single key mode)
+const USER_KEYS = process.env.USER_KEYS
+  ? process.env.USER_KEYS.split(',').map(k => k.trim()).filter(Boolean)
+  : [];
+
+function isValidKey(key) {
+  if (!key) return false;
+  // Accept master key (OVS_SECRET) always
+  if (OVS_SECRET && key === OVS_SECRET) return true;
+  // Accept any user key
+  if (USER_KEYS.length > 0) return USER_KEYS.includes(key);
+  // If no keys configured at all, allow open access
+  if (!OVS_SECRET && USER_KEYS.length === 0) return true;
+  return false;
+}
+
 // Google Cloud TTS REST endpoint
 const GOOGLE_TTS_URL = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${GOOGLE_API_KEY}`;
 
@@ -420,7 +438,7 @@ app.post('/generate-image', imageLimiter, async (req, res) => {
   const { key, prompt, aspectRatio } = req.body || {};
 
   // Auth — same OVS_SECRET used by TTS
-  if (OVS_SECRET && key !== OVS_SECRET) {
+  if (!isValidKey(key)) {
     return res.status(401).json({ success: false, error: 'Unauthorized' });
   }
 
@@ -434,7 +452,7 @@ app.post('/generate-image', imageLimiter, async (req, res) => {
 
   try {
     const response = await axios.post(IMAGE_URL, {
-      instances:  [{ prompt: prompt.trim() }],
+      instances:  [{ prompt: prompt.trim() + ', 2D stickman illustration, simple bold black outlines, flat colors, white background, minimal style, comic panel, no shading, clean linework' }],
       parameters: {
         sampleCount:     1,
         aspectRatio:     aspectRatio || '16:9',
