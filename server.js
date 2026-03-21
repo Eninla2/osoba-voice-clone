@@ -389,6 +389,80 @@ function parseGoogleError(err) {
 }
 
 /* ══════════════════════════════════════════════
+   IMAGE GENERATION — Imagen 4 via Gemini API
+   Uses the same GOOGLE_API_KEY as TTS above.
+   No new credentials needed.
+══════════════════════════════════════════════ */
+
+const IMAGE_URL = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${GOOGLE_API_KEY}`;
+
+// Health check — lets the extension confirm image generation is available
+app.get('/image-health', (req, res) => {
+  res.json({
+    status:  'ok',
+    service: 'StickFlow Image Generation',
+    model:   'imagen-4.0-generate-001',
+    apiKey:  GOOGLE_API_KEY ? 'set' : 'MISSING',
+  });
+});
+
+// Rate limiter for image generation (1 per 2s to avoid burst billing)
+const imageLimiter = rateLimit({
+  windowMs: 2000,
+  max: 1,
+  message: { success: false, error: 'Rate limit — 1 image per 2s' },
+});
+
+// POST /generate-image
+// Body: { key, prompt, aspectRatio }
+// Returns: { success, image (base64), mimeType }
+app.post('/generate-image', imageLimiter, async (req, res) => {
+  const { key, prompt, aspectRatio } = req.body || {};
+
+  // Auth — same OVS_SECRET used by TTS
+  if (OVS_SECRET && key !== OVS_SECRET) {
+    return res.status(401).json({ success: false, error: 'Unauthorized' });
+  }
+
+  if (!prompt || typeof prompt !== 'string' || prompt.trim().length < 3) {
+    return res.status(400).json({ success: false, error: 'prompt is required' });
+  }
+
+  if (!GOOGLE_API_KEY) {
+    return res.status(500).json({ success: false, error: 'GOOGLE_API_KEY not configured on server' });
+  }
+
+  try {
+    const response = await axios.post(IMAGE_URL, {
+      instances:  [{ prompt: prompt.trim() }],
+      parameters: {
+        sampleCount:     1,
+        aspectRatio:     aspectRatio || '16:9',
+        safetySetting:   'block_some',
+        personGeneration: 'allow_adult',
+      },
+    }, {
+      headers: { 'Content-Type': 'application/json' },
+      timeout: 60000,
+    });
+
+    const b64 = response.data?.predictions?.[0]?.bytesBase64Encoded;
+    if (!b64) {
+      console.error('generate-image: no image in response', JSON.stringify(response.data).slice(0, 200));
+      return res.status(502).json({ success: false, error: 'No image returned from Imagen API' });
+    }
+
+    return res.json({ success: true, image: b64, mimeType: 'image/png' });
+
+  } catch (err) {
+    const status = err.response?.status;
+    const msg    = err.response?.data?.error?.message || err.message;
+    console.error(`generate-image error [${status}]:`, msg);
+    return res.status(502).json({ success: false, error: `Imagen API ${status || 'error'}: ${msg.slice(0, 200)}` });
+  }
+});
+
+/* ══════════════════════════════════════════════
    START
 ══════════════════════════════════════════════ */
 app.listen(PORT, () => {
