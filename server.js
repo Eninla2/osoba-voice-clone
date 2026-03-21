@@ -438,7 +438,7 @@ app.post('/generate-image', imageLimiter, async (req, res) => {
       parameters: {
         sampleCount:     1,
         aspectRatio:     aspectRatio || '16:9',
-        safetySetting:   'block_some',
+        safetySetting:   'block_low_and_above',
         personGeneration: 'allow_adult',
       },
     }, {
