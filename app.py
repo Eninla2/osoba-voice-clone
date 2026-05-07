@@ -20,7 +20,7 @@ from fastapi.responses import JSONResponse, HTMLResponse
 from contextlib import asynccontextmanager
 import edge_tts
 
-VERSION       = "15.0.0"
+VERSION       = "15.1.0"
 SECRET_KEY    = os.environ.get("OSOBA_SECRET", "osoba2026")
 
 USER_KEYS = [k.strip() for k in os.environ.get("USER_KEYS", "").split(",") if k.strip()]
@@ -140,6 +140,25 @@ async def _load_all_voices():
         # CANADIAN (2)
         "en-CA-LiamNeural":        "Canadian Male \U0001f1e8\U0001f1e6 — Warm, Natural",
         "en-CA-ClaraNeural":       "Canadian Female \U0001f1e8\U0001f1e6 — Clear, Friendly",
+        # ── MULTILINGUAL VOICES (for dubbing) ──
+        # French
+        "fr-FR-HenriNeural":       "French Male — Standard",
+        "fr-FR-DeniseNeural":      "French Female — Expressif",
+        # Spanish
+        "es-ES-AlvaroNeural":      "Spanish Male — Claro",
+        "es-ES-ElviraNeural":      "Spanish Female — Cálida",
+        # Portuguese (Brazil)
+        "pt-BR-AntonioNeural":     "Portuguese Male — Natural",
+        "pt-BR-FranciscaNeural":   "Portuguese Female — Amigável",
+        # Arabic
+        "ar-SA-HamedNeural":       "Arabic Male — Fusha",
+        "ar-SA-ZariyahNeural":     "Arabic Female — Soft",
+        # Hindi
+        "hi-IN-MadhurNeural":      "Hindi Male — Clear",
+        "hi-IN-SwaraNeural":       "Hindi Female — Natural",
+        # German
+        "de-DE-ConradNeural":      "German Male — Klar",
+        "de-DE-KatjaNeural":       "German Female — Freundlich",
     }
     VOICE_META   = {}
     VOICE_STYLES = {}
