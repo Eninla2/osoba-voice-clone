@@ -161,30 +161,13 @@ async def _load_all_voices():
         "de-DE-KatjaNeural":       "German Female — Freundlich",
         # ── EXTRA ENGLISH VOICES (added to match WordPress dropdown) ──
         # US Male extra
-        "en-US-DavisNeural":       "US Male — Davis, Deep",
-        "en-US-TonyNeural":        "US Male — Tony, Casual",
-        "en-US-BrandonNeural":     "US Male — Brandon, Youthful",
         # US Female extra
         "en-US-AvaNeural":         "US Female — Ava, Expressive",
         "en-US-AnaNeural":         "US Female — Ana, Warm",
         "en-US-MichelleNeural":    "US Female — Michelle, Friendly",
-        "en-US-AmberNeural":       "US Female — Amber, Bright",
         # British Male extra
-        "en-GB-OllieNeural":       "British Male — Ollie, Friendly",
-        "en-GB-AlfieNeural":       "British Male — Alfie, Warm",
-        "en-GB-ElliotNeural":      "British Male — Elliot, Clear",
-        "en-GB-EthanNeural":       "British Male — Ethan, Deep",
-        "en-GB-NoahNeural":        "British Male — Noah, Warm",
-        "en-GB-OliverNeural":      "British Male — Oliver, Friendly",
         # British Female extra
-        "en-GB-AbbiNeural":        "British Female — Abbi, Natural",
-        "en-GB-BellaNeural":       "British Female — Bella, Soft",
-        "en-GB-HollieNeural":      "British Female — Hollie, Bright",
-        "en-GB-OliviaNeural":      "British Female — Olivia, Elegant",
         # Australian extra
-        "en-AU-DarrenNeural":      "Australian Male — Darren, Relaxed",
-        "en-AU-AnnetteNeural":     "Australian Female — Annette, Bright",
-        "en-AU-CarlyNeural":       "Australian Female — Carly, Warm",
         # Filipino
         "en-PH-JamesNeural":       "Filipino Male \U0001f1f5\U0001f1ed — James, Clear",
         "en-PH-RosaNeural":        "Filipino Female \U0001f1f5\U0001f1ed — Rosa, Warm",
