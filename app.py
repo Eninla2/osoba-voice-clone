@@ -165,11 +165,10 @@ async def _load_all_voices():
         "en-US-TonyNeural":        "US Male — Tony, Casual",
         "en-US-BrandonNeural":     "US Male — Brandon, Youthful",
         # US Female extra
-        "en-US-JaneNeural":        "US Female — Jane, Natural",
-        "en-US-NancyNeural":       "US Female — Nancy, Soft",
+        "en-US-AvaNeural":         "US Female — Ava, Expressive",
+        "en-US-AnaNeural":         "US Female — Ana, Warm",
         "en-US-MichelleNeural":    "US Female — Michelle, Friendly",
-        "en-US-CoraNeural":        "US Female — Cora, Calm",
-        "en-US-ElizabethNeural":   "US Female — Elizabeth, Elegant",
+        "en-US-AmberNeural":       "US Female — Amber, Bright",
         # British Male extra
         "en-GB-OllieNeural":       "British Male — Ollie, Friendly",
         "en-GB-AlfieNeural":       "British Male — Alfie, Warm",
